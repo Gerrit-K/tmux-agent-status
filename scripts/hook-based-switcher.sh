@@ -142,25 +142,25 @@ get_panes_with_status() {
     # Output grouped entries with separators
 
     if [ ${#working_entries[@]} -gt 0 ]; then
-        echo -e "\033[1;33m WORKING \033[0m"
+        echo -e "\033[1;33m── ⚡ WORKING ─────────────────────────\033[0m"
         printf '%s\n' "${working_entries[@]}"
     fi
 
     if [ ${#done_entries[@]} -gt 0 ]; then
         [ ${#working_entries[@]} -gt 0 ] && echo
-        echo -e "\033[1;32m DONE \033[0m"
+        echo -e "\033[1;32m── ✓ DONE ────────────────────────────\033[0m"
         printf '%s\n' "${done_entries[@]}"
     fi
 
     if [ ${#wait_entries[@]} -gt 0 ]; then
         [ ${#working_entries[@]} -gt 0 ] || [ ${#done_entries[@]} -gt 0 ] && echo
-        echo -e "\033[1;36m WAIT \033[0m"
+        echo -e "\033[1;36m── ⏸ WAIT ────────────────────────────\033[0m"
         printf '%s\n' "${wait_entries[@]}"
     fi
 
     if [ ${#parked_entries[@]} -gt 0 ]; then
         [ ${#working_entries[@]} -gt 0 ] || [ ${#done_entries[@]} -gt 0 ] || [ ${#wait_entries[@]} -gt 0 ] && echo
-        echo -e "\033[1;35m PARKED \033[0m"
+        echo -e "\033[1;35m── ⏏ PARKED ──────────────────────────\033[0m"
         printf '%s\n' "${parked_entries[@]}"
     fi
 }
