@@ -79,6 +79,10 @@ if [ -n "$TMUX" ] || [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
                 # Claude has finished responding
                 set_status "done"
                 ;;
+            "SessionEnd")
+                # Claude session ended — clean up all status files for this pane
+                rm -f "$STATUS_FILE" "$REMOTE_STATUS_FILE" "$WAIT_FILE" "$PARKED_FILE"
+                ;;
             "Notification")
                 # Claude is waiting for user input — don't overwrite "input"
                 current=$(cat "$STATUS_FILE" 2>/dev/null)
