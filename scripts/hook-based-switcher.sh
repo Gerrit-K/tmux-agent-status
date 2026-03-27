@@ -279,18 +279,51 @@ if [ "$1" = "--reset" ]; then
     exit 0
 fi
 
+# Handle --park <target> for inline park action
+if [ "$1" = "--park" ] && [ -n "$2" ]; then
+    target="$2"
+    pane_id=$(tmux display-message -t "$target" -p '#{pane_id}' 2>/dev/null)
+    if [ -n "$pane_id" ]; then
+        sk="p${pane_id#%}"
+        mkdir -p "$PARKED_DIR"
+        rm -f "$STATUS_DIR/wait/${sk}.wait"
+        : > "$PARKED_DIR/${sk}.parked"
+        echo "parked" > "$STATUS_DIR/${sk}.status"
+    fi
+    get_panes_with_status
+    exit 0
+fi
+
+# Handle --wait <target> for inline wait action (15min default)
+if [ "$1" = "--wait" ] && [ -n "$2" ]; then
+    target="$2"
+    pane_id=$(tmux display-message -t "$target" -p '#{pane_id}' 2>/dev/null)
+    if [ -n "$pane_id" ]; then
+        sk="p${pane_id#%}"
+        mkdir -p "$STATUS_DIR/wait"
+        rm -f "$PARKED_DIR/${sk}.parked"
+        expiry=$(( $(date +%s) + 900 ))
+        echo "$expiry" > "$STATUS_DIR/wait/${sk}.wait"
+        echo "wait" > "$STATUS_DIR/${sk}.status"
+    fi
+    get_panes_with_status
+    exit 0
+fi
+
 # Main
-sessions_with_reminder=$(echo -e "$(get_panes_with_status)\n\n\033[1;36m Hit Ctrl-R to clear stale caches and refresh! \033[0m")
+sessions_with_reminder=$(echo -e "$(get_panes_with_status)\n\n\033[1;36m Ctrl-R: refresh | Ctrl-X: park | Ctrl-Q: wait 15m \033[0m")
 
 selected=$(echo "$sessions_with_reminder" | fzf \
     --ansi \
     --no-sort \
-    --header="Agent panes grouped by status | j/k: navigate | Enter: select | Esc: cancel | Ctrl-R: clear stale caches" \
+    --header="Agent panes | Enter: switch | Ctrl-R: refresh | Ctrl-X: park | Ctrl-Q: wait 15m" \
     --preview 'target=$(echo {} | awk "{print \$1}"); if echo "$target" | grep -qE "^[a-zA-Z0-9_-]+:[0-9]+\.[0-9]+$"; then tmux capture-pane -epJ -t "$target" 2>/dev/null | cat -s || echo ""; else echo ""; fi' \
     --preview-window=right:40% \
     --prompt="Pane> " \
     --bind="j:down,k:up,ctrl-j:preview-down,ctrl-k:preview-up" \
     --bind="ctrl-r:reload(bash '$0' --reset)" \
+    --bind="ctrl-x:reload(bash '$0' --park \$(echo {} | awk '{print \$1}'))" \
+    --bind="ctrl-q:reload(bash '$0' --wait \$(echo {} | awk '{print \$1}'))" \
     --layout=reverse \
     --info=inline)
 
