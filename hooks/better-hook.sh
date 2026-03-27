@@ -37,11 +37,23 @@ if [ -n "$TMUX" ] || [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
     fi
 
     if [ -n "$TMUX_SESSION" ]; then
+        # Get window index for window-level tracking
+        if [ -n "$TMUX_PANE" ]; then
+            TMUX_WINDOW=$(tmux display-message -t "$TMUX_PANE" -p '#{window_index}' 2>/dev/null)
+        else
+            TMUX_WINDOW=$(tmux display-message -p '#{window_index}' 2>/dev/null)
+        fi
+        if [ -n "$TMUX_WINDOW" ]; then
+            STATUS_KEY="${TMUX_SESSION}_w${TMUX_WINDOW}"
+        else
+            STATUS_KEY="${TMUX_SESSION}"
+        fi
+
         HOOK_TYPE="$1"
-        STATUS_FILE="$STATUS_DIR/${TMUX_SESSION}.status"
-        REMOTE_STATUS_FILE="$STATUS_DIR/${TMUX_SESSION}-remote.status"
-        WAIT_FILE="$STATUS_DIR/wait/${TMUX_SESSION}.wait"
-        PARKED_FILE="$STATUS_DIR/parked/${TMUX_SESSION}.parked"
+        STATUS_FILE="$STATUS_DIR/${STATUS_KEY}.status"
+        REMOTE_STATUS_FILE="$STATUS_DIR/${STATUS_KEY}-remote.status"
+        WAIT_FILE="$STATUS_DIR/wait/${STATUS_KEY}.wait"
+        PARKED_FILE="$STATUS_DIR/parked/${STATUS_KEY}.parked"
 
         case "$HOOK_TYPE" in
             "UserPromptSubmit"|"PreToolUse")

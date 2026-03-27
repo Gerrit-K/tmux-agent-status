@@ -51,3 +51,30 @@ session_has_agent_process() {
 
     find_session_agent_pid "$session" "$pattern" >/dev/null 2>&1
 }
+
+find_window_agent_pid() {
+    local session="$1"
+    local window="$2"
+    local pattern="${3:-claude|codex}"
+
+    while IFS=: read -r _ pane_pid; do
+        [ -z "$pane_pid" ] && continue
+
+        local match_pid=""
+        match_pid=$(find_matching_descendant_pid "$pane_pid" "$pattern")
+        if [ -n "$match_pid" ]; then
+            echo "$match_pid"
+            return 0
+        fi
+    done < <(tmux list-panes -t "${session}:${window}" -F "#{pane_id}:#{pane_pid}" 2>/dev/null)
+
+    return 1
+}
+
+window_has_agent_process() {
+    local session="$1"
+    local window="$2"
+    local pattern="${3:-claude|codex}"
+
+    find_window_agent_pid "$session" "$window" "$pattern" >/dev/null 2>&1
+}

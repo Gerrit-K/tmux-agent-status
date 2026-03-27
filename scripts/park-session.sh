@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Park the current session so it stays in the switcher but drops out of the toolbar.
+# Park the current window so it stays in the switcher but drops out of the toolbar.
 
 STATUS_DIR="$HOME/.cache/tmux-agent-status"
 WAIT_DIR="$STATUS_DIR/wait"
@@ -12,10 +12,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/agent-processes.sh"
 
 current_session=$(tmux display-message -p "#{session_name}")
-
-has_agent_in_session() {
-    session_has_agent_process "$1"
-}
+current_window=$(tmux display-message -p "#{window_index}")
+status_key="${current_session}_w${current_window}"
+target="${current_session}:${current_window}"
 
 is_ssh_session() {
     local session="$1"
@@ -28,27 +27,27 @@ is_ssh_session() {
     esac
 }
 
-if ! has_agent_in_session "$current_session" && ! is_ssh_session "$current_session"; then
-    if [ ! -f "$STATUS_DIR/${current_session}.status" ] && [ ! -f "$STATUS_DIR/${current_session}-remote.status" ]; then
-        tmux display-message "Session $current_session has no agent state to park"
+if ! window_has_agent_process "$current_session" "$current_window" && ! is_ssh_session "$current_session"; then
+    if [ ! -f "$STATUS_DIR/${status_key}.status" ] && [ ! -f "$STATUS_DIR/${status_key}-remote.status" ]; then
+        tmux display-message "Window $target has no agent state to park"
         exit 1
     fi
 fi
 
-rm -f "$WAIT_DIR/$current_session.wait"
-: > "$PARKED_DIR/$current_session.parked"
+rm -f "$WAIT_DIR/${status_key}.wait"
+: > "$PARKED_DIR/${status_key}.parked"
 
 if is_ssh_session "$current_session"; then
-    echo "parked" > "$STATUS_DIR/${current_session}-remote.status"
+    echo "parked" > "$STATUS_DIR/${status_key}-remote.status"
 else
-    echo "parked" > "$STATUS_DIR/${current_session}.status"
+    echo "parked" > "$STATUS_DIR/${status_key}.status"
 fi
 
 NEXT_DONE_SCRIPT="$SCRIPT_DIR/next-done-project.sh"
 if [ -f "$NEXT_DONE_SCRIPT" ]; then
-    if ! bash "$NEXT_DONE_SCRIPT" "$current_session" 2>/dev/null; then
-        tmux display-message "Session $current_session parked for later"
+    if ! bash "$NEXT_DONE_SCRIPT" "$target" 2>/dev/null; then
+        tmux display-message "Window $target parked for later"
     fi
 else
-    tmux display-message "Session $current_session parked for later"
+    tmux display-message "Window $target parked for later"
 fi
