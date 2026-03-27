@@ -52,37 +52,39 @@ if [ -n "$TMUX" ] || [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
         WAIT_FILE="$STATUS_DIR/wait/${STATUS_KEY}.wait"
         PARKED_FILE="$STATUS_DIR/parked/${STATUS_KEY}.parked"
 
+        set_status() {
+            local status="$1"
+            echo "$status" > "$STATUS_FILE"
+            if [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
+                echo "$status" > "$REMOTE_STATUS_FILE" 2>/dev/null
+            fi
+        }
+
         case "$HOOK_TYPE" in
             "UserPromptSubmit"|"PreToolUse")
                 # User submitted a prompt or Claude is calling a tool - cancel wait mode if active
                 if [ -f "$WAIT_FILE" ]; then
-                    rm -f "$WAIT_FILE"  # Remove wait timer
+                    rm -f "$WAIT_FILE"
                 fi
                 if [ -f "$PARKED_FILE" ]; then
                     rm -f "$PARKED_FILE"
                 fi
-                echo "working" > "$STATUS_FILE"
-                # Only write to remote status file if we're in an SSH session
-                if [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
-                    echo "working" > "$REMOTE_STATUS_FILE" 2>/dev/null
-                fi
+                set_status "working"
+                ;;
+            "PermissionRequest")
+                # Claude is showing a permission dialog — needs user approval
+                set_status "input"
                 ;;
             "Stop")
-                # Claude has finished responding (SubagentStop excluded - subagents finishing doesn't mean the main agent is done)
-                echo "done" > "$STATUS_FILE"
-                # Only write to remote status file if we're in an SSH session
-                if [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
-                    echo "done" > "$REMOTE_STATUS_FILE" 2>/dev/null
-                fi
+                # Claude has finished responding
+                set_status "done"
                 ;;
             "Notification")
-                # Claude is waiting for user input
-                echo "done" > "$STATUS_FILE"
-                # Only write to remote status file if we're in an SSH session
-                if [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
-                    echo "done" > "$REMOTE_STATUS_FILE" 2>/dev/null
+                # Claude is waiting for user input — don't overwrite "input"
+                current=$(cat "$STATUS_FILE" 2>/dev/null)
+                if [ "$current" != "input" ]; then
+                    set_status "done"
                 fi
-
                 # Play notification sound when Claude finishes
                 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
                 "$SCRIPT_DIR/../scripts/play-sound.sh" 2>/dev/null &

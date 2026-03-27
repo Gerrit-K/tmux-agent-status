@@ -129,6 +129,7 @@ count_agent_status() {
     local working=0
     local waiting=0
     local done=0
+    local input=0
     local total_agents=0
 
     while IFS=$'\t' read -r pane_id pane_pid session pane_cmd; do
@@ -149,6 +150,7 @@ count_agent_status() {
                 case "$status" in
                     "working") ((working++)); ((total_agents++)) ;;
                     "done") ((done++)); ((total_agents++)) ;;
+                    "input") ((input++)); ((total_agents++)) ;;
                     "wait") ((waiting++)); ((total_agents++)) ;;
                 esac
             fi
@@ -172,13 +174,14 @@ count_agent_status() {
                 case "$status" in
                     "working") ((working++)); ((total_agents++)) ;;
                     "done") ((done++)); ((total_agents++)) ;;
+                    "input") ((input++)); ((total_agents++)) ;;
                     "wait") ((waiting++)); ((total_agents++)) ;;
                 esac
             fi
         fi
     done < <(tmux list-panes -a -F "#{pane_id}	#{pane_pid}	#{session_name}	#{pane_current_command}" 2>/dev/null)
 
-    echo "$working:$waiting:$done:$total_agents"
+    echo "$working:$waiting:$done:$input:$total_agents"
 }
 
 # Play notification sound
@@ -187,7 +190,7 @@ play_notification() {
 }
 
 # Get current status
-IFS=':' read -r working waiting done total_agents <<< "$(count_agent_status)"
+IFS=':' read -r working waiting done input total_agents <<< "$(count_agent_status)"
 
 # Load previous status
 prev_done=""
@@ -229,13 +232,23 @@ format_done_segment() {
     echo "#[fg=green]✓ $count done#[default]"
 }
 
+format_input_segment() {
+    local count="$1"
+    if [ "$count" -eq 1 ]; then
+        echo "#[fg=red,bold]⬤ 1 needs input#[default]"
+    else
+        echo "#[fg=red,bold]⬤ $count need input#[default]"
+    fi
+}
+
 # Generate status line output
 if [ "$total_agents" -eq 0 ]; then
     echo ""
-elif [ "$working" -eq 0 ] && [ "$waiting" -eq 0 ] && [ "$done" -gt 0 ]; then
+elif [ "$working" -eq 0 ] && [ "$waiting" -eq 0 ] && [ "$input" -eq 0 ] && [ "$done" -gt 0 ]; then
     echo "#[fg=green,bold]✓ All agents ready#[default]"
 else
     segments=()
+    [ "$input" -gt 0 ] && segments+=("$(format_input_segment "$input")")
     [ "$working" -gt 0 ] && segments+=("$(format_working_segment "$working")")
     [ "$waiting" -gt 0 ] && segments+=("$(format_waiting_segment "$waiting")")
     [ "$done" -gt 0 ] && segments+=("$(format_done_segment "$done")")

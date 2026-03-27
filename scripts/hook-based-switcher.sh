@@ -64,6 +64,7 @@ get_agent_status() {
 
 # Get all agent panes with formatted output
 get_panes_with_status() {
+    local input_entries=()
     local working_entries=()
     local done_entries=()
     local wait_entries=()
@@ -128,7 +129,10 @@ get_panes_with_status() {
 
         local formatted_line=""
 
-        if [ "$agent_status" = "working" ]; then
+        if [ "$agent_status" = "input" ]; then
+            formatted_line=$(printf "%-8s %-22s %-10s %s [needs input]" "$target" "$display_name" "$active_indicator" "$ssh_indicator")
+            input_entries+=("$formatted_line")
+        elif [ "$agent_status" = "working" ]; then
             formatted_line=$(printf "%-8s %-22s %-10s %s [working]" "$target" "$display_name" "$active_indicator" "$ssh_indicator")
             working_entries+=("$formatted_line")
         elif [ "$agent_status" = "wait" ]; then
@@ -154,10 +158,17 @@ get_panes_with_status() {
         fi
     done < <(tmux list-panes -a -F "$fmt" 2>/dev/null || echo "")
 
-    # Output grouped entries with separators (done first — needs attention)
+    # Output grouped entries with separators (input first — most urgent)
     local has_prev=false
 
+    if [ ${#input_entries[@]} -gt 0 ]; then
+        echo -e "\033[1;31m── ⬤ NEEDS INPUT ─────────────────────\033[0m"
+        printf '%s\n' "${input_entries[@]}"
+        has_prev=true
+    fi
+
     if [ ${#done_entries[@]} -gt 0 ]; then
+        [ "$has_prev" = true ] && echo
         echo -e "\033[1;32m── ✓ DONE ────────────────────────────\033[0m"
         printf '%s\n' "${done_entries[@]}"
         has_prev=true
