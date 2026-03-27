@@ -162,35 +162,35 @@ get_panes_with_status() {
     local has_prev=false
 
     if [ ${#input_entries[@]} -gt 0 ]; then
-        echo -e "\033[1;31m── ⬤ NEEDS INPUT ─────────────────────\033[0m"
+        echo -e "\033[1;31m──  ⬤  NEEDS INPUT ─────────────────────\033[0m"
         printf '%s\n' "${input_entries[@]}"
         has_prev=true
     fi
 
     if [ ${#done_entries[@]} -gt 0 ]; then
         [ "$has_prev" = true ] && echo
-        echo -e "\033[1;32m── ✓ DONE ────────────────────────────\033[0m"
+        echo -e "\033[1;32m──  ✓  DONE ────────────────────────────\033[0m"
         printf '%s\n' "${done_entries[@]}"
         has_prev=true
     fi
 
     if [ ${#working_entries[@]} -gt 0 ]; then
         [ "$has_prev" = true ] && echo
-        echo -e "\033[1;33m── ⚡ WORKING ─────────────────────────\033[0m"
+        echo -e "\033[1;33m──  ⚡  WORKING ─────────────────────────\033[0m"
         printf '%s\n' "${working_entries[@]}"
         has_prev=true
     fi
 
     if [ ${#wait_entries[@]} -gt 0 ]; then
         [ "$has_prev" = true ] && echo
-        echo -e "\033[1;36m── ⏸ WAIT ────────────────────────────\033[0m"
+        echo -e "\033[1;36m──  ⏸  WAIT ────────────────────────────\033[0m"
         printf '%s\n' "${wait_entries[@]}"
         has_prev=true
     fi
 
     if [ ${#parked_entries[@]} -gt 0 ]; then
         [ "$has_prev" = true ] && echo
-        echo -e "\033[1;35m── ⏏ PARKED ──────────────────────────\033[0m"
+        echo -e "\033[1;35m──  ⏏  PARKED ──────────────────────────\033[0m"
         printf '%s\n' "${parked_entries[@]}"
     fi
 }
