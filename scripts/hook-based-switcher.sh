@@ -154,27 +154,31 @@ get_panes_with_status() {
         fi
     done < <(tmux list-panes -a -F "$fmt" 2>/dev/null || echo "")
 
-    # Output grouped entries with separators
-
-    if [ ${#working_entries[@]} -gt 0 ]; then
-        echo -e "\033[1;33m── ⚡ WORKING ─────────────────────────\033[0m"
-        printf '%s\n' "${working_entries[@]}"
-    fi
+    # Output grouped entries with separators (done first — needs attention)
+    local has_prev=false
 
     if [ ${#done_entries[@]} -gt 0 ]; then
-        [ ${#working_entries[@]} -gt 0 ] && echo
         echo -e "\033[1;32m── ✓ DONE ────────────────────────────\033[0m"
         printf '%s\n' "${done_entries[@]}"
+        has_prev=true
+    fi
+
+    if [ ${#working_entries[@]} -gt 0 ]; then
+        [ "$has_prev" = true ] && echo
+        echo -e "\033[1;33m── ⚡ WORKING ─────────────────────────\033[0m"
+        printf '%s\n' "${working_entries[@]}"
+        has_prev=true
     fi
 
     if [ ${#wait_entries[@]} -gt 0 ]; then
-        [ ${#working_entries[@]} -gt 0 ] || [ ${#done_entries[@]} -gt 0 ] && echo
+        [ "$has_prev" = true ] && echo
         echo -e "\033[1;36m── ⏸ WAIT ────────────────────────────\033[0m"
         printf '%s\n' "${wait_entries[@]}"
+        has_prev=true
     fi
 
     if [ ${#parked_entries[@]} -gt 0 ]; then
-        [ ${#working_entries[@]} -gt 0 ] || [ ${#done_entries[@]} -gt 0 ] || [ ${#wait_entries[@]} -gt 0 ] && echo
+        [ "$has_prev" = true ] && echo
         echo -e "\033[1;35m── ⏏ PARKED ──────────────────────────\033[0m"
         printf '%s\n' "${parked_entries[@]}"
     fi
