@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Find and switch to the next 'done' window
+# Find and switch to the next 'done' agent pane
 
 STATUS_DIR="$HOME/.cache/tmux-agent-status"
 PARKED_DIR="$STATUS_DIR/parked"
@@ -8,10 +8,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/agent-processes.sh
 source "$SCRIPT_DIR/lib/agent-processes.sh"
 
-# Function to check if session is SSH
-is_ssh_session() {
-    local session="$1"
-    if tmux list-panes -t "$session" -F "#{pane_current_command}" 2>/dev/null | grep -q "^ssh$"; then
+is_ssh_pane() {
+    local pane_cmd="$1"
+    local session="$2"
+    if [ "$pane_cmd" = "ssh" ]; then
         return 0
     fi
     case "$session" in
@@ -36,7 +36,8 @@ normalize_local_wait_status() {
 
 get_agent_status() {
     local key="$1"
-    local session="$2"
+    local pane_cmd="$2"
+    local session="$3"
 
     if [ -f "$PARKED_DIR/${key}.parked" ]; then
         echo "parked"
@@ -44,10 +45,10 @@ get_agent_status() {
     fi
 
     local remote_status="$STATUS_DIR/${key}-remote.status"
-    if [ -f "$remote_status" ] && is_ssh_session "$session"; then
+    if [ -f "$remote_status" ] && is_ssh_pane "$pane_cmd" "$session"; then
         cat "$remote_status" 2>/dev/null
         return
-    elif [ -f "$remote_status" ] && ! is_ssh_session "$session"; then
+    elif [ -f "$remote_status" ] && ! is_ssh_pane "$pane_cmd" "$session"; then
         rm -f "$remote_status" 2>/dev/null
     fi
 
@@ -60,26 +61,28 @@ get_agent_status() {
     fi
 }
 
-# Get current window target
-current_target=$(tmux display-message -p '#{session_name}:#{window_index}')
+# Get current pane target
+current_target=$(tmux display-message -p '#{session_name}:#{window_index}.#{pane_index}')
 
 # Check if we're being called with a target to exclude (from wait-session-handler.sh or park-session.sh)
 exclude_target="$1"
 
-# Collect all done windows with their completion times
-done_windows_with_times=()
-while IFS=: read -r session window; do
-    [ -z "$session" ] && continue
+# Collect all done panes with their completion times
+done_panes_with_times=()
+while IFS=$'\t' read -r pane_id pane_pid session window pane_idx pane_cmd; do
+    [ -z "$pane_id" ] && continue
 
-    local_target="${session}:${window}"
-    status_key="${session}_w${window}"
+    local_target="${session}:${window}.${pane_idx}"
+    status_key="p${pane_id#%}"
 
-    agent_status=$(get_agent_status "$status_key" "$session")
+    agent_status=$(get_agent_status "$status_key" "$pane_cmd" "$session")
     has_agent=false
 
-    if window_has_agent_process "$session" "$window"; then
+    if pane_has_agent_process "$pane_pid"; then
         has_agent=true
-    elif [ -n "$agent_status" ] && is_ssh_session "$session"; then
+    elif [ -n "$agent_status" ] && is_ssh_pane "$pane_cmd" "$session"; then
+        has_agent=true
+    elif [ -n "$agent_status" ]; then
         has_agent=true
     fi
 
@@ -87,9 +90,8 @@ while IFS=: read -r session window; do
         [ -z "$agent_status" ] && agent_status="done"
 
         if [ "$agent_status" = "done" ] && [ "$local_target" != "$exclude_target" ]; then
-            # Get completion time from status file modification time
             status_file=""
-            if is_ssh_session "$session"; then
+            if is_ssh_pane "$pane_cmd" "$session"; then
                 status_file="$STATUS_DIR/${status_key}-remote.status"
             else
                 status_file="$STATUS_DIR/${status_key}.status"
@@ -100,16 +102,16 @@ while IFS=: read -r session window; do
                 completion_time=$(stat -c %Y "$status_file" 2>/dev/null || stat -f %m "$status_file" 2>/dev/null || echo 0)
             fi
 
-            done_windows_with_times+=("$completion_time:$local_target")
+            done_panes_with_times+=("$completion_time:$local_target")
         fi
     fi
-done < <(tmux list-windows -a -F "#{session_name}:#{window_index}" 2>/dev/null || echo "")
+done < <(tmux list-panes -a -F "#{pane_id}	#{pane_pid}	#{session_name}	#{window_index}	#{pane_index}	#{pane_current_command}" 2>/dev/null || echo "")
 
 # Sort by completion time (most recent first) and extract targets
-IFS=$'\n' sorted_targets=($(printf '%s\n' "${done_windows_with_times[@]}" | sort -t: -k1,1nr | cut -d: -f2-))
+IFS=$'\n' sorted_targets=($(printf '%s\n' "${done_panes_with_times[@]}" | sort -t: -k1,1nr | cut -d: -f2-))
 done_targets=("${sorted_targets[@]}")
 
-# If no done windows, exit
+# If no done panes, exit
 if [ ${#done_targets[@]} -eq 0 ]; then
     tmux display-message "No done projects found"
     exit 1
@@ -132,6 +134,6 @@ else
     next_target="${done_targets[$next_index]}"
 fi
 
-# Switch to the next done window
+# Switch to the next done pane
 tmux switch-client -t "$next_target"
 tmux display-message "Switched to next done project: $next_target"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Claude Code hook for tmux-agent-status
-# Updates tmux session status files based on Claude's working state
+# Updates tmux pane status files based on Claude's working state
 
 STATUS_DIR="$HOME/.cache/tmux-agent-status"
 mkdir -p "$STATUS_DIR"
@@ -18,35 +18,32 @@ if [ -n "$TMUX" ] || [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
     if [ -z "$TMUX_SESSION" ]; then
         # For SSH sessions, try to auto-detect session name from the SSH connection
         if [ -n "$SSH_CONNECTION" ] || [ -n "$SSH_TTY" ]; then
-            # Use a simple heuristic: assume session name matches common SSH aliases
-            # Check if we're on known servers and map to likely session names
             case $(hostname -s) in
-                instance-*) TMUX_SESSION="reachgpu" ;;  # Your GPU server
+                instance-*) TMUX_SESSION="reachgpu" ;;
                 keen-schrodinger) TMUX_SESSION="sd1" ;;
                 sam-l4-workstation-image) TMUX_SESSION="l4-workstation" ;;
                 persistent-faraday) TMUX_SESSION="tig" ;;
                 instance-20250620-122051) TMUX_SESSION="reachgpu" ;;
-                *) TMUX_SESSION=$(hostname -s) ;;       # Default to hostname
+                *) TMUX_SESSION=$(hostname -s) ;;
             esac
         else
-            # TMUX format: /tmp/tmux-1000/default,3847,10
-            # Extract session name from socket path
             SOCKET_PATH=$(echo "$TMUX" | cut -d',' -f1)
             TMUX_SESSION=$(basename "$SOCKET_PATH")
         fi
     fi
 
     if [ -n "$TMUX_SESSION" ]; then
-        # Get window index for window-level tracking
+        # Get pane ID for pane-level tracking
         if [ -n "$TMUX_PANE" ]; then
-            TMUX_WINDOW=$(tmux display-message -t "$TMUX_PANE" -p '#{window_index}' 2>/dev/null)
+            STATUS_KEY="p${TMUX_PANE#%}"
         else
-            TMUX_WINDOW=$(tmux display-message -p '#{window_index}' 2>/dev/null)
-        fi
-        if [ -n "$TMUX_WINDOW" ]; then
-            STATUS_KEY="${TMUX_SESSION}_w${TMUX_WINDOW}"
-        else
-            STATUS_KEY="${TMUX_SESSION}"
+            PANE_ID=$(tmux display-message -p '#{pane_id}' 2>/dev/null)
+            if [ -n "$PANE_ID" ]; then
+                STATUS_KEY="p${PANE_ID#%}"
+            else
+                # SSH fallback: use session name
+                STATUS_KEY="${TMUX_SESSION}"
+            fi
         fi
 
         HOOK_TYPE="$1"

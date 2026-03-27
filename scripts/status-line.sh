@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Status line script for tmux status bar
-# Shows agent status across all windows (not just sessions)
+# Shows agent status across all panes
 
 STATUS_DIR="$HOME/.cache/tmux-agent-status"
 PARKED_DIR="$STATUS_DIR/parked"
@@ -10,9 +10,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/agent-processes.sh
 source "$SCRIPT_DIR/lib/agent-processes.sh"
 
-is_ssh_session() {
-    local session="$1"
-    if tmux list-panes -t "$session" -F "#{pane_current_command}" 2>/dev/null | grep -q "^ssh$"; then
+is_ssh_pane() {
+    local pane_cmd="$1"
+    local session="$2"
+    if [ "$pane_cmd" = "ssh" ]; then
         return 0
     fi
     case "$session" in
@@ -52,9 +53,9 @@ normalize_local_wait_status() {
     fi
 }
 
-# Check for agent processes (Codex) via process polling
-find_window_codex_pid() {
-    find_window_agent_pid "$1" "$2" "codex"
+# Check for Codex agent processes via process polling
+find_pane_codex_pid() {
+    find_pane_agent_pid "$1" "codex"
 }
 
 get_deepest_codex_pid() {
@@ -82,15 +83,15 @@ codex_session_is_working() {
 }
 
 check_agent_processes() {
-    while IFS=: read -r session window; do
-        [ -z "$session" ] && continue
-        local status_key="${session}_w${window}"
+    while IFS=$'\t' read -r pane_id pane_pid session pane_cmd; do
+        [ -z "$pane_id" ] && continue
+        local status_key="p${pane_id#%}"
         local status_file="$STATUS_DIR/${status_key}.status"
         local wait_file="$STATUS_DIR/wait/${status_key}.wait"
         local parked_file="$PARKED_DIR/${status_key}.parked"
         local codex_pid=""
 
-        codex_pid=$(find_window_codex_pid "$session" "$window" 2>/dev/null)
+        codex_pid=$(find_pane_codex_pid "$pane_pid" 2>/dev/null)
 
         if [ -n "$codex_pid" ]; then
             local current_status
@@ -117,23 +118,23 @@ check_agent_processes() {
                 esac
             fi
         fi
-    done < <(tmux list-windows -a -F "#{session_name}:#{window_index}" 2>/dev/null)
+    done < <(tmux list-panes -a -F "#{pane_id}	#{pane_pid}	#{session_name}	#{pane_current_command}" 2>/dev/null)
 }
 
 check_wait_timers
 check_agent_processes
 
-# Count agent windows by status
+# Count agent panes by status
 count_agent_status() {
     local working=0
     local waiting=0
     local done=0
     local total_agents=0
 
-    while IFS=: read -r session window; do
-        [ -z "$session" ] && continue
+    while IFS=$'\t' read -r pane_id pane_pid session pane_cmd; do
+        [ -z "$pane_id" ] && continue
 
-        local status_key="${session}_w${window}"
+        local status_key="p${pane_id#%}"
         local parked_file="$PARKED_DIR/${status_key}.parked"
         if [ -f "$parked_file" ]; then
             continue
@@ -142,7 +143,7 @@ count_agent_status() {
         local remote_status_file="$STATUS_DIR/${status_key}-remote.status"
         local status_file="$STATUS_DIR/${status_key}.status"
 
-        if [ -f "$remote_status_file" ] && is_ssh_session "$session"; then
+        if [ -f "$remote_status_file" ] && is_ssh_pane "$pane_cmd" "$session"; then
             local status=$(cat "$remote_status_file" 2>/dev/null)
             if [ -n "$status" ]; then
                 case "$status" in
@@ -151,7 +152,7 @@ count_agent_status() {
                     "wait") ((waiting++)); ((total_agents++)) ;;
                 esac
             fi
-        elif [ -f "$remote_status_file" ] && ! is_ssh_session "$session"; then
+        elif [ -f "$remote_status_file" ] && ! is_ssh_pane "$pane_cmd" "$session"; then
             rm -f "$remote_status_file" 2>/dev/null
             normalize_local_wait_status "$status_key"
             if [ -f "$status_file" ]; then
@@ -175,7 +176,7 @@ count_agent_status() {
                 esac
             fi
         fi
-    done < <(tmux list-windows -a -F "#{session_name}:#{window_index}" 2>/dev/null)
+    done < <(tmux list-panes -a -F "#{pane_id}	#{pane_pid}	#{session_name}	#{pane_current_command}" 2>/dev/null)
 
     echo "$working:$waiting:$done:$total_agents"
 }
