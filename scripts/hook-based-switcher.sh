@@ -73,13 +73,23 @@ get_panes_with_status() {
     local current_pane_id
     current_pane_id=$(tmux display-message -p '#{pane_id}' 2>/dev/null)
 
-    while IFS=$'\t' read -r pane_id pane_pid session window pane_idx pane_path pane_cmd; do
+    while IFS=$'\t' read -r pane_id pane_pid session window pane_idx pane_path pane_cmd pane_title; do
         [ -z "$pane_id" ] && continue
 
         local status_key="p${pane_id#%}"
         local target="${session}:${window}.${pane_idx}"
         local dir_name
         dir_name=$(basename "$pane_path" 2>/dev/null)
+
+        # Extract display name from pane title (Claude sets it to e.g. "✳ my-session")
+        local display_name="$dir_name"
+        if [ -n "$pane_title" ]; then
+            # Strip leading status icon (e.g. ✳, ⠂) and whitespace
+            local title_text="${pane_title#* }"
+            if [ -n "$title_text" ] && [ "$title_text" != "Claude Code" ]; then
+                display_name="$title_text"
+            fi
+        fi
 
         local agent_status
         agent_status=$(get_agent_status "$status_key" "$pane_cmd" "$session")
@@ -114,7 +124,7 @@ get_panes_with_status() {
         local formatted_line=""
 
         if [ "$agent_status" = "working" ]; then
-            formatted_line=$(printf "%-8s %-22s %-10s %s [working]" "$target" "$dir_name" "$active_indicator" "$ssh_indicator")
+            formatted_line=$(printf "%-8s %-22s %-10s %s [working]" "$target" "$display_name" "$active_indicator" "$ssh_indicator")
             working_entries+=("$formatted_line")
         elif [ "$agent_status" = "wait" ]; then
             local wait_file="$STATUS_DIR/wait/${status_key}.wait"
@@ -128,16 +138,16 @@ get_panes_with_status() {
                     wait_info="(${remaining_minutes}m)"
                 fi
             fi
-            formatted_line=$(printf "%-8s %-22s %-10s %s [wait] %s" "$target" "$dir_name" "$active_indicator" "$ssh_indicator" "$wait_info")
+            formatted_line=$(printf "%-8s %-22s %-10s %s [wait] %s" "$target" "$display_name" "$active_indicator" "$ssh_indicator" "$wait_info")
             wait_entries+=("$formatted_line")
         elif [ "$agent_status" = "parked" ]; then
-            formatted_line=$(printf "%-8s %-22s %-10s %s [parked]" "$target" "$dir_name" "$active_indicator" "$ssh_indicator")
+            formatted_line=$(printf "%-8s %-22s %-10s %s [parked]" "$target" "$display_name" "$active_indicator" "$ssh_indicator")
             parked_entries+=("$formatted_line")
         else
-            formatted_line=$(printf "%-8s %-22s %-10s %s [done]" "$target" "$dir_name" "$active_indicator" "$ssh_indicator")
+            formatted_line=$(printf "%-8s %-22s %-10s %s [done]" "$target" "$display_name" "$active_indicator" "$ssh_indicator")
             done_entries+=("$formatted_line")
         fi
-    done < <(tmux list-panes -a -F "#{pane_id}	#{pane_pid}	#{session_name}	#{window_index}	#{pane_index}	#{pane_current_path}	#{pane_current_command}" 2>/dev/null || echo "")
+    done < <(tmux list-panes -a -F "#{pane_id}	#{pane_pid}	#{session_name}	#{window_index}	#{pane_index}	#{pane_current_path}	#{pane_current_command}	#{pane_title}" 2>/dev/null || echo "")
 
     # Output grouped entries with separators
 
