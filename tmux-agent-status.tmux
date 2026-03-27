@@ -13,7 +13,7 @@ fi
 default_switcher_key="S"
 default_next_done_key="N"
 default_wait_key="W"
-default_park_key="p"
+default_park_key="P"
 
 # Get user configuration or use defaults (check new @agent-* first, fall back to @claude-*)
 switcher_key=$(tmux show-option -gqv "@agent-status-key")
