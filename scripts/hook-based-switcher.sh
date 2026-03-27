@@ -73,7 +73,12 @@ get_panes_with_status() {
     local current_pane_id
     current_pane_id=$(tmux display-message -p '#{pane_id}' 2>/dev/null)
 
-    while IFS=$'\t' read -r pane_id pane_pid session window pane_idx pane_path pane_cmd pane_title; do
+    # Use Unit Separator (0x1f) as delimiter — tab would collapse consecutive empty fields
+    local sep
+    sep=$(printf '\x1f')
+    local fmt="#{pane_id}${sep}#{pane_pid}${sep}#{session_name}${sep}#{window_index}${sep}#{pane_index}${sep}#{pane_current_path}${sep}#{pane_current_command}${sep}#{pane_title}"
+
+    while IFS=$'\x1f' read -r pane_id pane_pid session window pane_idx pane_path pane_cmd pane_title; do
         [ -z "$pane_id" ] && continue
 
         local status_key="p${pane_id#%}"
@@ -147,7 +152,7 @@ get_panes_with_status() {
             formatted_line=$(printf "%-8s %-22s %-10s %s [done]" "$target" "$display_name" "$active_indicator" "$ssh_indicator")
             done_entries+=("$formatted_line")
         fi
-    done < <(tmux list-panes -a -F "#{pane_id}	#{pane_pid}	#{session_name}	#{window_index}	#{pane_index}	#{pane_current_path}	#{pane_current_command}	#{pane_title}" 2>/dev/null || echo "")
+    done < <(tmux list-panes -a -F "$fmt" 2>/dev/null || echo "")
 
     # Output grouped entries with separators
 
